@@ -2,7 +2,7 @@
 .SYNOPSIS
     Recurse ADGroup for members and return object
 .DESCRIPTION
-    1. Recurse thourhg ADGroup for all users and groups
+    1. Recurse through ADGroup for all users and groups
     2. Construct object with users and groups
     3. Return object
 .NOTES
