@@ -7,7 +7,7 @@
 .NOTES
     Author:  ts-systech-team@scu.edu.au
     Created: 27-Sep-2021
-    LastMod: 28-Oct-2021 - use $raw
+    LastMod: 23-Nov-2021 - update v15; add 1.1 note text; run on all SQL instances
 .REFERENCE
     https://www.cisecurity.org/cis-benchmarks/
 #>
@@ -19,15 +19,20 @@ $bm = "CIS_SQL_2019_1.2.0"
 # https://docs.microsoft.com/en-us/sql/database-engine/install-windows/latest-updates-for-microsoft-sql-server?view=sql-server-ver15
 # https://sqlserverbuilds.blogspot.com/
 $expect = @{
-    "15" = [PSCustomObject]@{
-        "Version" = "15.0.4178.1";
+    "16" = [PSCustomObject]@{
+        "Version" = "16.???";
         "SP" = "RTM";
-        "CU" = "CU13";
+        "CU" = "CU?";
+    };
+    "15" = [PSCustomObject]@{
+        "Version" = "15.0.4188.2";
+        "SP" = "RTM";
+        "CU" = "CU14";
     };
     "14" = [PSCustomObject]@{
-        "Version" = "14.0.3411.3";
+        "Version" = "14.0.3421.10";
         "SP" = "RTM";
-        "CU" = "CU26";
+        "CU" = "CU27";
     };
     "13" = [PSCustomObject]@{
         "Version" = "13.3.6300.2";
@@ -46,17 +51,24 @@ $expect = @{
     };
 }
 
+# https://powershellmagazine.com/2013/08/06/pstip-retrieve-all-sql-instance-names-on-local-and-remote-computers/
+$instances = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server').InstalledInstances
+
+foreach ($instance in $instances) {
+
+    switch ($instance) {
+        "MSSQLSERVER" { $serverInstance = "" }
+        default       { $serverInstance = $instance }
+    }
+
 $script = @"
 SELECT        SERVERPROPERTY('ProductMajorVersion') AS MajorVersion, SERVERPROPERTY('ProductVersion') AS Version, SERVERPROPERTY('ProductLevel') AS SP, SERVERPROPERTY('ProductUpdateLevel') AS CU
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "1.1 Ensure Latest SQL Server Cumulative and Security Updates are Installed";
-    "Version" = $result.Version;
-    "SP" = $result.SP;
-    "CU" = $result.CU;
     "Pass" = $(
         if (
             $result.Version -eq $expect[$result.MajorVersion].Version -and
@@ -64,15 +76,15 @@ $raw += [PSCustomObject]@{
             $result.CU -eq $expect[$result.MajorVersion].CU
         ) { $true } else { $false }
     );
-    "Note" = "$($result.Version) // $($expect[$result.MajorVersion].Version)";
+    "Note" = "expect = $($expect[$result.MajorVersion].Version) $($expect[$result.MajorVersion].SP) $($expect[$result.MajorVersion].CU); this = $($result.Version) $($result.SP) $($result.CU);";
 }
 
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "1.2 Ensure Single-Function Member Servers are Used";
     "Pass" = $true;
-    "Note" = "SQL architecture prefers dedicated server";
+    "Note" = "SCU SQL architecture prefers dedicated server";
 }
 
 $script = @"
@@ -80,10 +92,10 @@ SELECT        name, CAST(value AS int) AS value_configured, CAST(value_in_use AS
 FROM            sys.configurations
 WHERE        (name = 'Ad Hoc Distributed Queries')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.1 Ensure 'Ad Hoc Distributed Queries' Server Configuration Option is set to '0'";
     "Pass" = $(
         if (
@@ -104,10 +116,10 @@ SELECT @command = '
 '
 EXEC sp_MSforeachdb @command
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.2 Ensure 'CLR Enabled' Server Configuration Option is set to '0'";
     "Pass" = $(
         if (
@@ -122,10 +134,10 @@ SELECT        name, CAST(value AS int) AS value_configured, CAST(value_in_use AS
 FROM            sys.configurations
 WHERE        (name = 'cross db ownership chaining')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.3 Ensure 'Cross DB Ownership Chaining' Server Configuration Option is set to '0'";
     "Pass" = $(
         if (
@@ -141,10 +153,10 @@ SELECT        name, CAST(value AS int) AS value_configured, CAST(value_in_use AS
 FROM            sys.configurations
 WHERE        (name = 'Database Mail XPs')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.4 Ensure 'Database Mail XPs' Server Configuration Option is set to '0'";
     "Pass" = $(
         if (
@@ -160,10 +172,10 @@ SELECT        name, CAST(value AS int) AS value_configured, CAST(value_in_use AS
 FROM            sys.configurations
 WHERE        (name = 'Ole Automation Procedures')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.5 Ensure 'Ole Automation Procedures' Server Configuration Option is set to '0'";
     "Pass" = $(
         if (
@@ -179,10 +191,10 @@ SELECT        name, CAST(value AS int) AS value_configured, CAST(value_in_use AS
 FROM            sys.configurations
 WHERE        (name = 'remote access')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.6 Ensure 'Remote Access' Server Configuration Option is set to '0'";
     "Pass" = $(
         if (
@@ -200,10 +212,10 @@ SELECT        name, CAST(value AS int) AS value_configured, CAST(value_in_use AS
 FROM            sys.configurations
 WHERE        (name = 'remote admin connections') AND (SERVERPROPERTY('IsClustered') = 0)
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.7 Ensure 'Remote Admin Connections' Server Configuration Option is set to '0'";
     "Pass" = $(
         if (
@@ -219,10 +231,10 @@ SELECT        name, CAST(value AS int) AS value_configured, CAST(value_in_use AS
 FROM            sys.configurations
 WHERE        (name = 'scan for startup procs')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.8 Ensure 'Scan For Startup Procs' Server Configuration Option is set to '0'";
     "Pass" = $(
         if (
@@ -238,10 +250,10 @@ SELECT        COUNT(name) AS trustworthyCountName
 FROM            sys.databases
 WHERE        (is_trustworthy_on = 1) AND (name <> 'msdb')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.9 Ensure 'Trustworthy' Database Property is set to 'Off'";
     "Pass" = $(
         if (
@@ -257,10 +269,10 @@ SELECT        registry_key, value_name, value_data
 FROM            sys.dm_server_registry
 WHERE        (registry_key LIKE '%SuperSocketNetLib%') AND (value_name = 'Enabled') AND (value_data = 1)
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.10 Ensure Unnecessary SQL Server Protocols are set to 'Disabled'";
     "Pass" = $(
         if (
@@ -277,10 +289,10 @@ SELECT        TOP (1) local_tcp_port
 FROM            sys.dm_exec_connections
 WHERE        (local_tcp_port IS NOT NULL)
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.11 Ensure SQL Server is configured to use non-standard ports";
     "Pass" = $(
         if (
@@ -300,10 +312,10 @@ Server\MSSQLServer\SuperSocketNetLib',
 @value = @getValue OUTPUT;
 SELECT @getValue AS value_data;
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.12 Ensure 'Hide Instance' option is set to 'Yes' for Production SQL Server instances";
     "Pass" = $(
         if (
@@ -318,10 +330,10 @@ SELECT        COUNT(*) AS value_count
 FROM            sys.server_principals
 WHERE        (sid = 0x01) AND (is_disabled = 0)
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.13 Ensure the 'sa' Login Account is set to 'Disabled'";
     "Pass" = $(
         if (
@@ -336,10 +348,10 @@ SELECT        name, is_disabled
 FROM            sys.server_principals
 WHERE        (sid = 0x01)
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.14 Ensure the 'sa' Login Account has been renamed";
     "Pass" = $(
         if (
@@ -355,10 +367,10 @@ SELECT        COUNT(*) AS value_count
 FROM            sys.databases
 WHERE        (containment <> 0) AND (is_auto_close_on = 1)
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.15 Ensure 'AUTO_CLOSE' is set to 'OFF' on contained databases";
     "Pass" = $(
         if (
@@ -373,10 +385,10 @@ SELECT        COUNT(*) AS value_count
 FROM            sys.server_principals
 WHERE        (name = 'sa')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.16 Ensure no login exists with the name 'sa'";
     "Pass" = $(
         if (
@@ -396,10 +408,10 @@ SELECT @command = '
 '
 EXEC sp_MSforeachdb @command
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "2.17 Ensure 'clr strict security' Server Configuration Option is set to '1'";
     "Pass" = $(
         if (
@@ -412,10 +424,10 @@ $raw += [PSCustomObject]@{
 $script = @"
 SELECT        SERVERPROPERTY('IsIntegratedSecurityOnly') AS login_mode
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "3.1 Ensure 'Server Authentication' Property is set to 'Windows Authentication Mode'";
     "Pass" = $(
         if (
@@ -439,10 +451,10 @@ SELECT @command = '
 '
 EXEC sp_MSforeachdb @command
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "3.2 Ensure CONNECT permissions on the 'guest' user is Revoked within all SQL Server databases excluding the master, msdb and tempdb";
     "Pass" = $(
         if (
@@ -465,10 +477,10 @@ SELECT @command = '
 '
 EXEC sp_MSforeachdb @command
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "3.3 Ensure 'Orphaned Users' are Dropped From SQL Server Databases";
     "Pass" = $(
         if (
@@ -490,10 +502,10 @@ SELECT @command = '
 '
 EXEC sp_MSforeachdb @command
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "3.4 Ensure SQL Authentication is not used in contained databases";
     "Pass" = $(
         if (
@@ -523,8 +535,8 @@ if ($localAdmins -eq $null) {
 }
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
-    "Recommendation" = "3.5 Ensure the SQL Server’s MSSQL Service Account is Not an Administrator";
+    "BenchMark" = $bm;    "Instance" = $instance;
+    "Recommendation" = "3.5 Ensure the SQL Server's MSSQL Service Account is Not an Administrator";
     "Pass" = $result;
     "Note" = $note;
 }
@@ -549,8 +561,8 @@ if ($localAdmins -eq $null) {
 }
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
-    "Recommendation" = "3.6 Ensure the SQL Server’s SQLAgent Service Account is Not an Administrator";
+    "BenchMark" = $bm;    "Instance" = $instance;
+    "Recommendation" = "3.6 Ensure the SQL Server's SQLAgent Service Account is Not an Administrator";
     "Pass" = $result;
     "Note" = $note;
 }
@@ -575,8 +587,8 @@ if ($localAdmins -eq $null) {
 }
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
-    "Recommendation" = "3.7 Ensure the SQL Server’s Full-Text Service Account is Not an Administrator";
+    "BenchMark" = $bm;    "Instance" = $instance;
+    "Recommendation" = "3.7 Ensure the SQL Server's Full-Text Service Account is Not an Administrator";
     "Pass" = $result;
     "Note" = $note;
 }
@@ -600,10 +612,10 @@ WHERE        (grantee_principal_id = SUSER_SID(N'public')) AND (state_desc LIKE 
                          NOT (class_desc = 'ENDPOINT') OR
                          NOT (major_id = 5))
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "3.8 Ensure only the default permissions specified by Microsoft are granted to the public server role";
     "Pass" = $(
         if (
@@ -618,10 +630,10 @@ FROM            sys.server_principals AS pr INNER JOIN
                          sys.server_permissions AS pe ON pr.principal_id = pe.grantee_principal_id
 WHERE        (pr.name LIKE 'BUILTIN%')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "3.9 Ensure Windows BUILTIN groups are not SQL Logins";
     "Pass" = $(
         if (
@@ -638,10 +650,10 @@ FROM            sys.server_principals AS pr INNER JOIN
                          sys.server_permissions AS pe ON pr.principal_id = pe.grantee_principal_id
 WHERE        (pr.type_desc = 'WINDOWS_GROUP') AND (pr.name LIKE CAST(SERVERPROPERTY('MachineName') AS nvarchar) + '%')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "3.10 Ensure Windows local groups are not SQL Logins";
     "Pass" = $(
         if (
@@ -659,10 +671,10 @@ FROM            sysproxylogin AS spl INNER JOIN
                          sysproxies AS sp ON sp.proxy_id = spl.proxy_id
 WHERE        (dp.principal_id = USER_ID('public'))
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "3.11 Ensure the public role in the msdb database is not granted access to SQL Agent proxies";
     "Pass" = $(
         if (
@@ -683,10 +695,10 @@ FROM            sys.sql_logins AS l INNER JOIN
                          sys.server_permissions AS p ON l.principal_id = p.grantee_principal_id
 WHERE        (p.type = 'CL') AND (p.state IN ('G', 'W')) AND (l.is_expiration_checked <> 1) AND (l.is_disabled = 0)
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "4.2 Ensure 'CHECK_EXPIRATION' Option is set to 'ON' for All SQL Authenticated Logins Within the Sysadmin Role";
     "Pass" = $(
         if (
@@ -700,10 +712,10 @@ SELECT        name, is_disabled
 FROM            sys.sql_logins
 WHERE        (is_policy_checked = 0)
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "4.3 Ensure 'CHECK_POLICY' Option is set to 'ON' for All SQL Authenticated Logins";
     "Pass" = $(
         if (
@@ -726,10 +738,10 @@ N'NumErrorLogs',
 @NumErrorLogs OUTPUT;
 SELECT ISNULL(@NumErrorLogs, -1) AS [NumberOfLogFiles];
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "5.1 Ensure 'Maximum number of error log files' is set to greater than or equal to '12'";
     "Pass" = $(
         if (
@@ -744,10 +756,10 @@ SELECT        name, CAST(value AS int) AS value_configured, CAST(value_in_use AS
 FROM            sys.configurations
 WHERE        (name = 'default trace enabled')
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "5.2 Ensure 'Default Trace Enabled' Server Configuration Option is set to '1'";
     "Pass" = $(
         if (
@@ -760,10 +772,10 @@ $raw += [PSCustomObject]@{
 $script = @"
 EXEC xp_loginconfig 'audit level';
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "5.3 Ensure 'Login Auditing' is set to 'failed logins'";
     "Pass" = $(
         if (
@@ -781,10 +793,10 @@ FROM            sys.server_audit_specification_details AS SAD INNER JOIN
                          sys.server_audits AS S ON SA.audit_guid = S.audit_guid
 WHERE        (SAD.audit_action_id IN ('CNAU', 'LGFL', 'LGSD'))
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "5.4 Ensure 'SQL Server Audit' is set to capture both 'failed' and 'successful logins'";
     "Pass" = $(
         $cnau = [bool]($result |
@@ -805,7 +817,7 @@ $raw += [PSCustomObject]@{
 
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "6.1 Ensure Database and Application User Input is Sanitized";
     "Pass" = $true;
     "Note" = "Manual check - dependent on application";
@@ -821,10 +833,10 @@ SELECT @command = '
 '
 EXEC sp_MSforeachdb @command
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "6.2 Ensure 'CLR Assembly Permission Set' is set to 'SAFE_ACCESS' for All CLR Assemblies";
     "Pass" = $(
         if (
@@ -845,10 +857,10 @@ SELECT @command = '
 '
 EXEC sp_MSforeachdb @command
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "7.1 Ensure 'Symmetric Key encryption algorithm' is set to 'AES_128' or higher in non-system databases";
     "Pass" = $(
         if (
@@ -872,10 +884,10 @@ SELECT @command = '
 '
 EXEC sp_MSforeachdb @command
 "@
-$result = Invoke-Sqlcmd -Query $script
+$result = Invoke-Sqlcmd -Query $script -ServerInstance "$cn`\$serverInstance"
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "7.2 Ensure Asymmetric Key Size is set to 'greater than or equal to 2048' in non-system databases";
     "Pass" = $(
         if (
@@ -892,7 +904,7 @@ $raw += [PSCustomObject]@{
 $result = (Get-Service 'SQL Server Browser').Status
 $raw += [PSCustomObject]@{
     "ComputerName" = $cn;
-    "BenchMark" = $bm;
+    "BenchMark" = $bm;    "Instance" = $instance;
     "Recommendation" = "8.1 Ensure 'SQL Server Browser Service' is configured correctly";
     "Pass" = $(
         if (
@@ -900,6 +912,7 @@ $raw += [PSCustomObject]@{
         ) { $true } else { $false }
     );
     "Note" = "MSSQL* = $((Get-Service MSSQL*).count)";
+}
 }
 
 return $raw

@@ -7,7 +7,7 @@
 .NOTES
     Author:  ts-systech-team@scu.edu.au
     Created: 27-Sep-2021
-    LastMod: 27-Sep-2021 - initial build
+    LastMod: 02-Nov-2021 - add assessBenchMark
 .REFERENCE
     https://www.cisecurity.org/cis-benchmarks/
 #>
@@ -31,11 +31,12 @@ begin {
             $dst = "\\$cn\C$\Users\Public\Downloads\"
             $pscred = getCredential -asUser $server.user
 
-            $cn, $src, $dst
+            #$cn, $src, $dst
         }
         process {
             # copy benchmark script to server
-            copyFile -path $src -destination $dst
+            #copyFile -path $src -destination $dst
+            Copy-Item -Path $src -Destination $dst
             # invoke benchmanrk script on server and return result
             $path = Join-Path $dst -ChildPath (Split-Path -Path $src -Leaf)
             $result = Invoke-Command -ComputerName $cn -Credential $pscred -ArgumentList $path -ScriptBlock {
@@ -55,7 +56,8 @@ begin {
             [string]$computernamefilter,
             [string]$application,
             [string]$environment,
-            [string]$service
+            [string]$service,
+            [switch]$exportCsv
         )
         begin {
             $params = "-type $type"
@@ -76,15 +78,47 @@ begin {
             }
         }
         end {
+            if ([bool]$exportCsv) {
+                $csvFile = Join-Path $dataPath -ChildPath "$now-benchmark-$type.csv"
+                $results |
+                    Select-Object ComputerName, BenchMark, Pass, Recommendation, Note |
+                    Export-Csv -Path $csvFile -NoTypeInformation -Append
+                writeLog "Export-Csv -Path $csvFile -NoTypeInformation -Append"
+            }
             return $results
+        }
+    }
+
+    function assessBenchMark {
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory=$true)][ValidateSet("cis-iis","cis-sql")][string]$type
+        )
+        begin {
+            $path = Get-ChildItem -Path $dataPath -Filter "*$type*" |
+                Sort-Object -Property LastWriteTime |
+                Select-Object -Last 1
+            $raw = Import-Csv -Path $path.FullName
+        }
+        process {
+            $count = ($raw | Select-Object -Property ComputerName -Unique).count
+
+            writeLog "$type Server Count = $count"
+            return $raw |
+                Where-Object -Property Pass -eq $false |
+                Select-Object -Property ComputerName, Recommendation -Unique |
+                Group-Object -Property Recommendation |
+                Select-Object Count, Name |
+                Sort-Object Count -Descending
+        }
+        end {
+
         }
     }
 }
 
 process {
-
 }
 
 end {
-
 }
