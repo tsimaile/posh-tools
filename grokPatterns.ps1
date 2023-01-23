@@ -27,7 +27,7 @@
     1.  Today is 
     2.  the first day of the week
 .EXAMPLE
-    To match a line with a specific pattern and names Matches
+    To match a line with a specific pattern and named Matches
 
     $line = '13:34:59 230.165.15.96 example@company.com'
     $pattern = "^(?'Time'$grokTIME)\s(?'IPAddress'$grokIPADDRESS)\s(?'EmailAddress'$grokEMAILADDRESS)"
