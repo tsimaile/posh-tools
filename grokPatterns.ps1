@@ -27,20 +27,22 @@
     1.  Today is 
     2.  the first day of the week
 .EXAMPLE
-    To match a line with a specific pattern and see the subMatches
-    
-    $line = '13:34:59 2C:54:91:88:C9:E3 example@company.com'
-    $pattern = "^($grokTIME)\s($grokMAC)\s($grokEMAILADDRESS)"
+    To match a line with a specific pattern and names Matches
+
+    $line = '13:34:59 230.165.15.96 example@company.com'
+    $pattern = "^(?'Time'$grokTIME)\s(?'IPAddress'$grokIPADDRESS)\s(?'EmailAddress'$grokEMAILADDRESS)"
     $line -match $pattern | %{$Matches}
-    
-    returns the Matches group with subMatches
+
     Name                           Value                                                                                                                                                                                                                             
     ----                           -----                                                                                                                                                                                                                             
-    4                                                                                                                                                                                                                                                                
-    3                              example@company.com                                                                                                                                                                                                               
-    2                              2C:54:91:88:C9:E3                                                                                                                                                                                                                 
-    1                              13:34:59                                                                                                                                                                                                                          
-    0                              13:34:59 2C:54:91:88:C9:E3 example@company.com     
+    76                                                                                                                                                                                                                                                               
+    Time                           13:34:59                                                                                                                                                                                                                          
+    EmailAddress                   example@company.com                                                                                                                                                                                                               
+    IPAddress                      230.165.15.96                                                                                                                                                                                                                     
+    0                              13:34:59 230.165.15.96 example@company.com                                                                                                                                                                                        
+
+    $Matches['Time'] = '13:34:59'
+    $Matches['EmailAddress'] = 'example@company.com'
 #>
 
 # base
