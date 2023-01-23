@@ -1,7 +1,47 @@
-﻿# https://streamsets.com/documentation/datacollector/latest/help/datacollector/UserGuide/Apx-GrokPatterns/GrokPatterns_title.html
-# https://doc.lucidworks.com/fusion-server/5.1/reference/parser-stages/grok-patterns.html
-
-# standard regex patterns for use in Powershell searches
+﻿<#
+.SYNOPSIS
+    Regex patterns for  Powershell
+.DESCRIPTION
+    standard regular expressions patterns for use in Powershell searches using
+    * -match
+    * -split
+    * -replace
+    * Select-String
+.NOTES
+    Author: TS SysTech Team (ts-systech-team@scu.edu.au)
+    LastMod: 04-Aug-2020
+    Source patterns from
+    * https://streamsets.com/documentation/datacollector/latest/help/datacollector/UserGuide/Apx-GrokPatterns/GrokPatterns_title.html
+    * https://doc.lucidworks.com/fusion-server/5.1/reference/parser-stages/grok-patterns.html
+.EXAMPLE
+    '230.165.15.96' -match $grokIPV4
+    returns True as valid IPv4
+.EXAMPLE
+    'examp|e@company.com' -match $grokEMAILADDRESS
+    
+    returns False as account name contains an invalid character '|'
+.EXAMPLE
+    'Today is Monday the first day of the week' -split $grokDAY
+    
+    returns two strings split on any valid day
+    1.  Today is 
+    2.  the first day of the week
+.EXAMPLE
+    To match a line with a specific pattern and see the subMatches
+    
+    $line = '13:34:59 2C:54:91:88:C9:E3 example@company.com'
+    $pattern = "^($grokTIME)\s($grokMAC)\s($grokEMAILADDRESS)"
+    $line -match $pattern | %{$Matches}
+    
+    returns the Matches group with subMatches
+    Name                           Value                                                                                                                                                                                                                             
+    ----                           -----                                                                                                                                                                                                                             
+    4                                                                                                                                                                                                                                                                
+    3                              example@company.com                                                                                                                                                                                                               
+    2                              2C:54:91:88:C9:E3                                                                                                                                                                                                                 
+    1                              13:34:59                                                                                                                                                                                                                          
+    0                              13:34:59 2C:54:91:88:C9:E3 example@company.com     
+#>
 
 # base
 $grokPOSINT = "\b(?:[1-9][0-9]*)\b"
