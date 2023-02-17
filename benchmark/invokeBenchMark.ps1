@@ -7,7 +7,7 @@
 .NOTES
     Author:  ts-systech-team@scu.edu.au
     Created: 27-Sep-2021
-    LastMod: 02-Nov-2021 - add assessBenchMark
+    LastMod: 15-Feb-2023 - use resolveServer2 function
 .REFERENCE
     https://www.cisecurity.org/cis-benchmarks/
 #>
@@ -26,7 +26,7 @@ begin {
         begin {
             # local vars
             $result = @()
-            $cn = $server.computername
+            $cn = $server.computername.Trim()
             $src = (Get-ChildItem -Path $medir -Filter "*$type*").FullName
             $dst = "\\$cn\C$\Users\Public\Downloads\"
             $pscred = getCredential -asUser $server.user
@@ -35,14 +35,37 @@ begin {
         }
         process {
             # copy benchmark script to server
+            writeLog "Processing $cn ..."
             #copyFile -path $src -destination $dst
-            Copy-Item -Path $src -Destination $dst
-            # invoke benchmanrk script on server and return result
-            $path = Join-Path $dst -ChildPath (Split-Path -Path $src -Leaf)
-            $result = Invoke-Command -ComputerName $cn -Credential $pscred -ArgumentList $path -ScriptBlock {
-                    param ($dstPath)
-                    & $dstPath
+            if (Test-Path -Path $dst -ErrorAction SilentlyContinue) {
+                if (Test-WSMan -ComputerName $cn -ErrorAction SilentlyContinue) {
+                    Copy-Item -Path $src -Destination $dst
+                    # invoke benchmanrk script on server and return result
+                    $path = Join-Path $dst -ChildPath (Split-Path -Path $src -Leaf)
+                    $result = Invoke-Command -ComputerName $cn -Credential $pscred -ArgumentList $path -ScriptBlock {
+                            param ($dstPath)
+                            & $dstPath
+                        }
+                } else {
+                    writeLog "- Test-WSMan $cn = FAIL"
+                    $result = New-Object -TypeName psobject -Property @{
+                        "ComputerName" = $cn;
+                        "BenchMark" = $type;
+                        "Pass" = "UNKNOWN";
+                        "Recommendation" = "NULL";
+                        "Note" = "Test-WSMan = FAIL";
+                    }
                 }
+            } else {
+                writeLog "- Test-Path $cn = FAIL"
+                $result = New-Object -TypeName psobject -Property @{
+                    "ComputerName" = $cn;
+                    "BenchMark" = $type;
+                    "Pass" = "UNKNOWN";
+                    "Recommendation" = "NULL";
+                    "Note" = "Test-Path = FAIL";
+                }
+            }
         }
         end {
             return $result
@@ -53,23 +76,23 @@ begin {
         [CmdletBinding()]
         param (
             [Parameter(Mandatory=$true)][ValidateSet("cis-iis","cis-sql")][string]$type,
-            [string]$computernamefilter,
-            [string]$application,
-            [string]$environment,
-            [string]$service,
+            [string]$filter,
+            [string]$app = ".",
+            [string]$env = ".",
+            [string]$svc = ".",
             [switch]$exportCsv
         )
         begin {
             $params = "-type $type"
-            if ([bool]$computernamefilter) {$params += " -filter $computernamefilter"}
-            if ([bool]$application)        {$params += " -application $application"}
-            if ([bool]$environment)        {$params += " -environment $environment"}
-            if ([bool]$service)            {$params += " -service $service"}
+            if ([bool]$filter) {$params += " -filter $filter"}
+            if ([bool]$app)    {$params += " -app $app"}
+            if ([bool]$env)    {$params += " -env $env"}
+            if ([bool]$svc)    {$params += " -svc $svc"}
 
             writeLog "BEGIN $me $params"
 
             # local vars
-            $servers = resolveServer -filter $computernamefilter -application $application -environment $environment -service $service -unique
+            $servers = resolveServer2 -filter $filter -app $app -env $env -svc $svc -unique
         }
         process {
             $results = @()
